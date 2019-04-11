@@ -4,7 +4,7 @@
  * Catalin Olaru / Vlad Spoiala
  */
 #include "utils.h"
-
+#include "cblas.h"
 /*
  * Add your BLAS implementation here
  */
@@ -15,14 +15,12 @@ double* my_solver(int N, double *A, double *B) {
 	double *C = calloc(N * N, sizeof(double));
 	alpha = 1.0;
 	beta = 0.0;
-	cblas_dsyr2k(CblasUpper, CblasTrans, CblasNoTrans,
-			N, N, N, alpha, B, N, A, N, beta, C, N);
+	cblas_dsyr2k(CblasRowMajor, CblasUpper, CblasTrans, N, N, alpha, A, N, B, N, beta, C, N);
 
 	double *D = calloc(N * N, sizeof(double));
 	alpha = 1.0;
 	beta = 0.0;
-	cblas_dgemm(CblasNoTrans, CblasNoTrans,
-			N, N, N, alpha, C, N, C, N, beta, D, N);
+	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N, N, N, alpha, C, N, C, N, beta, D, N);
 
 	return D;
 }
