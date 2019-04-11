@@ -1,8 +1,8 @@
 CC=icc
 CFLAGS=-Wall -Werror -O0
-OTHER_C_FLAGS=-Wall -Werror 
-LIBDIRS=
-LIBS=
+OTHER_C_FLAGS=-Wall -Werror -O3 
+LIBDIRS=-L/usr/lib64/atlas
+LIBS=-lsatlas
 
 all: tema2_blas tema2_neopt tema2_opt_m tema2_opt_f
 

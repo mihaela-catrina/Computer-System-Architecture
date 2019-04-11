@@ -9,9 +9,8 @@
  * Add your BLAS implementation here
  */
 double* my_solver(int N, double *A, double *B) {
-	printf("BLAS SOLVER\n");
 	double alpha, beta;
-	// keep the result
+	
 	double *C = calloc(N * N, sizeof(double));
 	alpha = 1.0;
 	beta = 0.0;
