@@ -14,10 +14,10 @@ enum CBLAS_SIDE		{CblasLeft=141, CblasRight=142};
 int cblas_errprn(int ierr, int info, char *form, ...);
 
 /*
- *  * ===========================================================================
- *   * Prototypes for level 1 BLAS functions (complex are recast as routines)
- *    * ===========================================================================
- *     */
+ *  * =========================================================================
+ *  * Prototypes for level 1 BLAS functions (complex are recast as routines)
+ *  * =========================================================================
+ *  */
 float  cblas_sdsdot(const int N, const float alpha, const float *X,
                     const int incX, const float *Y, const int incY);
 double cblas_dsdot(const int N, const float *X, const int incX, const float *Y,
@@ -65,14 +65,14 @@ CBLAS_INDEX cblas_icamax(const int N, const void   *X, const int incX);
 CBLAS_INDEX cblas_izamax(const int N, const void   *X, const int incX);
 
 /*
- *  * ===========================================================================
- *   * Prototypes for level 1 BLAS routines
- *    * ===========================================================================
- *     */
+ *  * =========================================================================
+ *  * Prototypes for level 1 BLAS routines
+ *  * =========================================================================
+ *  */
 
 /*
  *  * Routines with standard 4 prefixes (s, d, c, z)
- *   */
+ *  */
 void cblas_sswap(const int N, float *X, const int incX,
                  float *Y, const int incY);
 void cblas_scopy(const int N, const float *X, const int incX,
@@ -130,10 +130,10 @@ void cblas_csscal(const int N, const float alpha, void *X, const int incX);
 void cblas_zdscal(const int N, const double alpha, void *X, const int incX);
 
 /*
- *  * ===========================================================================
- *   * Prototypes for level 2 BLAS
- *    * ===========================================================================
- *     */
+ *  * =========================================================================
+ *  * Prototypes for level 2 BLAS
+ *  * =========================================================================
+ *  */
 
 /*
  *  * Routines with standard 4 prefixes (S, D, C, Z)
@@ -399,10 +399,10 @@ void cblas_zhpr2(const enum CBLAS_ORDER Order, const enum CBLAS_UPLO Uplo, const
                 const void *Y, const int incY, void *Ap);
 
 /*
- *  * ===========================================================================
- *   * Prototypes for level 3 BLAS
- *    * ===========================================================================
- *     */
+ *  * =========================================================================
+ *  * Prototypes for level 3 BLAS
+ *  * =========================================================================
+ *  */
 
 /*
  *  * Routines with standard 4 prefixes (S, D, C, Z)

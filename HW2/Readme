@@ -1,0 +1,66 @@
+Nume:  Catrina Mihaela-Florentina
+Grupa: 333CB
+
+===============================================================================
+				Tema 2 ASC
+===============================================================================
+
+    Implmentarea BLAS este cea mai rapida. Toate testele scot impreuna un total
+mediu de 3.2s (atat cu gcc, cat si cu icc).
+    Implementarea neoptimizata este, in mod evident, cea mai lenta. In acest 
+caz toate testele scot impreuna aproximativ 1,5 minute (1 m 36 s) - valabil
+atat pentru executabilul compilat cu gcc, cat si pentru cel compilat cu icc.
+    Compilarea codului neoptimizat cu flaguri de optimizare a scos timpi semni-
+ficativi mai mici: 30 - 38s (icc - gcc).
+    In cazul OPT_M am folosit diverse strategii de optimizare: am folosit
+registrii acolo unde am consideral util, am introdus adresarea cu pointeri
+pentru acces mai rapid, am realizat inmultirile pe linii pentru o performanta
+mult mai buna a cache -ului (am inmultit linie x linie, nu linie x coloana ->
+folosindu-ma de matricea transpusa). De asemenea, am separat calculele intens
+computationale de cele simple (adunarea de inmultire). Aceste strategii,
+impreuna cu mici optimizari matematice (vizibile in comentariile din cod) au
+redus timpul variantei neoptimizate cu aproximativ 70 - 75s. Astfel, toate
+testele au scos impreuna ~ 20s, cel mai mare necesitand in medie 16s.
+
+    Astfel, se poate observa ca ICC produce rezultate mai bune cu apoximativ 8s
+in cazul compilarii codului neoptimizat cu flaguri de compilare. Tehnicile
+de optimizarea build-in in ICC sunt mai rapide pentru Intel CPUs (chiar si
+pentru AMD CPUs). Pe de alta parte procesul de compilare este mai lent pe ICC.
+De asemena, de luat in considerare este si dimensiunea fisierelor obiect. In
+cazul ICC fisierele obiect generate sunt semnificativ mai mari (de la 14K la
+96K). In cazul blas si opt_m gcc scoat timpi mai buni cu ~ 0.1s.
+
+Comparatie:
+             GCC                                    ICC
+BLAS:
+                                                
+Test=1: Time=0.037564                         Test=1: Time=0.037736
+Test=2: Time=0.549406                         Test=2: Time=0.547994
+Test=3: Time=2.177183                         Test=3: Time=2.176479 
+
+NEOPT:
+
+Test=1: Time=1.120103                         Test=1: Time=1.112100
+Test=2: Time=16.008148                        Test=2: Time=16.860861
+Test=3: Time=78.395874                        Test=3: Time=78.575981
+
+OPT_M:
+
+Test=1: Time=0.297485                         Test=1: Time=0.352258
+Test=2: Time=4.222239                         Test=2: Time=4.932382
+Test=3: Time=16.966034                        Test=3: Time=19.846748
+
+OPT_F:
+
+Test=1: Time=0.483910                         Test=1: Time=0.431301
+Test=2: Time=9.864918                         Test=2: Time=5.261941
+Test=3: Time=34.503376                        Test=3: Time=22.200884
+
+
+
+
+
+
+
+
+
