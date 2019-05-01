@@ -1,6 +1,6 @@
 #ifndef _HASHCPU_
 #define _HASHCPU_
-
+#include <atomic>
 using namespace std;
 
 #define	KEY_INVALID		0
@@ -74,6 +74,12 @@ int hash3(int data, int limit) {
 	return ((long)abs(data) * primeList[70]) % primeList[93] % limit;
 }
 
+struct Bucket {
+    atomic<uint32_t> key;
+    atomic<uint32_t> value;
+};
+
+
 //
 // GPU HashTable
 //
@@ -93,18 +99,11 @@ class GpuHashTable
 
 		~GpuHashTable();
 	private:
-		class Bucket;
 		int capacity;
 		int currentSize;
 		Bucket* table;
 
 		Bucket& operator[](int index) { return table[index]; }
-
-	private:
-		class Bucket {
-			std::atomic<uint32_t> key;
-			std::atomic<uint32_t> value;
-		};
 };
 
 #endif
