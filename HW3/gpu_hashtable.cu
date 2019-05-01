@@ -7,7 +7,7 @@
 
 #include "gpu_hashtable.hpp"
 
-__device__ int hash(int key, int offset = 0 )
+__device__ int hashFunc(int key, int offset = 0 )
 {
     offset *= 2;
     uint64_t a = primeList[MAX_HASH_PARAM-offset];
@@ -22,17 +22,17 @@ __global__ void cuckooInsert( int* keys, int* values, int numKeys, Bucket *table
     if (idx < numKeys) {
         int key = keys[idx];
         int value = values[idx];
-        Bucket newValue = {key, value};
-        int oldHashIdx;
+        Bucket newValue = (static_cast<Bucket>(key) << 1*sizeof(value)) | value;
+        int oldHashIdx, hashIdx;
 
-        hashIdx = hash(key, 0) % capacity;
+        hashIdx = hashFunc(key, 0) % capacity;
         for (int i = 0; i < MAX_VER; ++i) {
-            newValue = atomicExch(table[hashIdx], newValue);
-            if (newValue.key == KEY_INVALID)
+            newValue = atomicExch(reinterpret_cast<unsigned long long*>(&table[hashIdx]), newValue);
+            if (newValue >> 1*sizeof(Value) == KEY_INVALID)
                 return;
             oldHashIdx = hashIdx;
             for (int j = 0; j < MAX_VER; ++j) {
-                hashIdx = hash(key, j) % capacity;
+                hashIdx = hashFunc(key, j) % capacity;
                 if (hashIdx != oldHashIdx)
                     break;
             }
@@ -96,7 +96,7 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
         ++blocks_no;
 
     // Launch the kernel
-    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, numKeys, deviceValues, table, capacity);
+    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity);
 
     cudaDeviceSynchronize();
     return false;
