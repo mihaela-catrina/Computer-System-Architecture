@@ -103,6 +103,9 @@ class GpuHashTable
 		int currentSize;
 		Bucket* table;
 
+        int* deviceKeys;
+        int* deviceValues;
+
 		Bucket& operator[](int index) { return table[index]; }
 };
 

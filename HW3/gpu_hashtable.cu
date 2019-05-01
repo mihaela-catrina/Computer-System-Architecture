@@ -7,12 +7,21 @@
 
 #include "gpu_hashtable.hpp"
 
+__global__ void cuckooInsert( int* keys, int* values )
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int key = keys[idx];
+    int value = values[idx];
+    printf( "tid %d: Insert (%u,%u) failed\n", idx, key, value );
+    return;
+}
+
 /* INIT HASH
  */
 GpuHashTable::GpuHashTable(int size) {
     capacity = size;
     // free slots have <key, value> equal to 0
-    cudaMalloc((void**)&table, capacity * sizeof(Bucket));
+    cudaMalloc((void **) &table, capacity * sizeof(Bucket));
     cudaMemset(table, 0, capacity * sizeof(Bucket));
 }
 
@@ -20,6 +29,9 @@ GpuHashTable::GpuHashTable(int size) {
  */
 GpuHashTable::~GpuHashTable() {
     cudaFree(table);
+    currentSize = 0;
+    capacity = 0;
+    table = NULL;
 }
 
 /* RESHAPE HASH
@@ -29,21 +41,37 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 
 /* INSERT BATCH
  */
-bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
-	return false;
+bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
+
+    cudaMalloc(&deviceKeys, numKeys * sizeof(int));
+    cudaMalloc(&deviceValues, numKeys * sizeof(int));
+    cudaMemcpy(deviceKeys, keys, numKeys, cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceValues, values, numKeys, cudaMemcpyHostToDevice);
+
+    const int block_size = 64;
+    int blocks_no = numKeys / block_size;
+
+    if (numKeys % block_size)
+        ++blocks_no;
+
+    // Launch the kernel
+    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues);
+
+    cudaDeviceSynchronize();
+    return false;
 }
 
 /* GET BATCH
  */
-int* GpuHashTable::getBatch(int* keys, int numKeys) {
-	return NULL;
+int *GpuHashTable::getBatch(int *keys, int numKeys) {
+    return NULL;
 }
 
 /* GET LOAD FACTOR
  * num elements / hash total slots elements
  */
 float GpuHashTable::loadFactor() {
-	return 0.f; // no larger than 1.0f = 100%
+    return 0.f; // no larger than 1.0f = 100%
 }
 
 /*********************************************************/
