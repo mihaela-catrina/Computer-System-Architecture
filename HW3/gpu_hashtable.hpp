@@ -14,7 +14,7 @@ using namespace std;
 		exit(errno);	\
 	}	\
 } while (0)
-	
+
 const size_t primeList[] =
 {
 	2llu, 3llu, 5llu, 7llu, 11llu, 13llu, 17llu, 23llu, 29llu, 37llu, 47llu,
@@ -80,18 +80,31 @@ int hash3(int data, int limit) {
 class GpuHashTable
 {
 	public:
+		GpuHashTable(): capacity(0), currentSize(0), table(NULL) {};
 		GpuHashTable(int size);
 		void reshape(int sizeReshape);
-		
+
 		bool insertBatch(int *keys, int* values, int numKeys);
 		int* getBatch(int* key, int numItems);
-		
+
 		float loadFactor();
 		void occupancy();
 		void print(string info);
-	
+
 		~GpuHashTable();
+	private:
+		class Bucket;
+		int capacity;
+		int currentSize;
+		Bucket* table;
+
+		Bucket& operator[](int index) { return table[index]; }
+
+	private:
+		class Bucket {
+			std::atomic<uint32_t> key;
+			std::atomic<uint32_t> value;
+		};
 };
 
 #endif
-

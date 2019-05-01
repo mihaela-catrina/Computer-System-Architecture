@@ -10,11 +10,16 @@
 /* INIT HASH
  */
 GpuHashTable::GpuHashTable(int size) {
+	capacity = size;
+    // free slots have <key, value> equal to 0
+    CUDA_CALL(cudaMalloc((void**)&table, capacity * sizeof(Bucket)));
+    CUDA_CALL(cudaMemset(table, 0, capacity * sizeof(Bucket)));
 }
 
 /* DESTROY HASH
  */
 GpuHashTable::~GpuHashTable() {
+    CUDA_CALL(cudaFree(table));
 }
 
 /* RESHAPE HASH
