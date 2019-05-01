@@ -4,6 +4,11 @@
 using namespace std;
 
 #define	KEY_INVALID		0
+#define MAX_HASH_PARAM  180
+#define MAX_VER         5
+
+// Array to store possible positions for a key
+int hashIdx;
 
 #define DIE(assertion, call_description) \
 	do {	\
@@ -14,6 +19,7 @@ using namespace std;
 		exit(errno);	\
 	}	\
 } while (0)
+
 
 const size_t primeList[] =
 {
