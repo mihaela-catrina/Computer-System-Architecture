@@ -22,24 +22,65 @@ __global__ void cuckooInsert( int* keys, int* values, int numKeys, Bucket *table
     if (idx < numKeys) {
         int key = keys[idx];
         int value = values[idx];
-        Bucket newValue = (static_cast<Bucket>(key) << 1*sizeof(value)) | value;
-        int oldHashIdx, hashIdx;
+        Bucket newValue = (static_cast<Bucket>(key) << 1*sizeof(Value)) | value;
 
-        hashIdx = hashFunc(key, 0) % capacity;
+        uint32_t idx[5];
+        idx[0] = hashFunc(key, 0) % capacity;
+
         for (int i = 0; i < MAX_VER; ++i) {
-            newValue = atomicExch(reinterpret_cast<unsigned long long*>(&table[hashIdx]), newValue);
-            if (newValue >> 1*sizeof(Value) == KEY_INVALID)
+            
+            newValue = atomicExch(reinterpret_cast<unsigned long long*>(&table[idx[0]]), newValue);
+            if (newValue & 0xff00 == KEY_INVALID)
                 return;
-            oldHashIdx = hashIdx;
-            for (int j = 0; j < MAX_VER; ++j) {
-                hashIdx = hashFunc(key, j) % capacity;
-                if (hashIdx != oldHashIdx)
-                    break;
-            }
+
+            // Otherwise find a new location for the displaced item
+            idx[1] = hashFunc( key, 0 ) % capacity;
+            idx[2] = hashFunc( key, 1 ) % capacity;
+            idx[3] = hashFunc( key, 2 ) % capacity;
+            idx[4] = hashFunc( key, 3 ) % capacity;
+
+            if( idx[0] == idx[1] ) idx[0] = idx[2];
+            else if( idx[0] == idx[2] ) idx[0] = idx[3];
+            else if( idx[0] == idx[3] ) idx[0] = idx[4];
+            else idx[0] = idx[1];
         }
 
         printf("tid %d: Insert (%u,%u) failed\n", idx, key, value);
     }
+    return;
+}
+
+__global__ void cuckooGet( int* keys, int* values, int numKeys, Bucket *table, int capacity)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < numKeys) {
+        int key = keys[idx];
+
+        // Compute all possible locations
+        uint32_t idx[4];
+        idx[0] = hashFunc(key, 0 );
+        idx[1] = hashFunc(key, 1 );
+        idx[2] = hashFunc(key, 2 );
+        idx[3] = hashFunc(key, 3 );
+
+        Bucket entry;
+        for( int i = 0; i < 4; ++i )
+        {
+            entry = table[idx[i] % ts->capacity];
+            Key k = entry >> 1*sizeof(Value);
+            if( k == key ) {
+                values[idx] = entry & 0xff;
+                return;
+            }
+            if( k == NULL_KEY )
+                break;
+        }
+
+        // Should never fail except for invalid keys
+        printf( "Query for %u failed\n", key );
+    }
+
     return;
 }
 
@@ -99,13 +140,30 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
     cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity);
 
     cudaDeviceSynchronize();
+    cudaFree(deviceKeys);
+    cudaFree(deviceValues);
     return false;
 }
 
 /* GET BATCH
  */
 int *GpuHashTable::getBatch(int *keys, int numKeys) {
-    return NULL;
+    cudaMalloc(&deviceKeys, numKeys * sizeof(int));
+    cudaMalloc(&deviceValues, numKeys * sizeof(int));
+    cudaMemcpy(deviceKeys, keys, numKeys, cudaMemcpyHostToDevice);
+
+    const int block_size = 64;
+    int blocks_no = numKeys / block_size;
+
+    if (numKeys % block_size)
+        ++blocks_no;
+    cuckooGet <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity);
+
+    int *hostValues = 0;
+
+    hostValues = (int*) malloc(numKeys * sizeof(int));
+    cudaMemcpy(hostValues, deviceValues, numKeys, cudaMemcpyDeviceToHost);
+    return hostValues;
 }
 
 /* GET LOAD FACTOR
