@@ -1,16 +1,23 @@
 #ifndef _HASHCPU_
 #define _HASHCPU_
 #include <atomic>
+#include <random>
 using namespace std;
 
 #define	KEY_INVALID		0
 #define MAX_HASH_PARAM  180
 #define MAX_VER         5
+#define HASH_FUNC_PRIME_DIVISOR 4294967291u
 
 // Array to store possible positions for a key
 typedef unsigned long long Bucket;
 typedef uint32_t Key;
 typedef uint32_t Value; 
+random_device rd;
+mt19937 gen( rd() );
+uniform_int_distribution<Key> keyGen( 1 );
+uniform_int_distribution<Value> valGen( 1 );
+uniform_int_distribution<int> hashFnGen( 1 );
 
 #define DIE(assertion, call_description) \
 	do {	\
@@ -22,7 +29,7 @@ typedef uint32_t Value;
 	}	\
 } while (0)
 
-__device__ __constant__ size_t primeList[] =
+__device__ size_t primeList[] =
 {
 	2llu, 3llu, 5llu, 7llu, 11llu, 13llu, 17llu, 23llu, 29llu, 37llu, 47llu,
 	59llu, 73llu, 97llu, 127llu, 151llu, 197llu, 251llu, 313llu, 397llu,
@@ -70,17 +77,36 @@ __device__ __constant__ size_t primeList[] =
 
 //
 // random hash functions, build your own
-/*
+inline __device__
 int hash1(int data, int limit) {
 	return ((long)abs(data) * primeList[64]) % primeList[90] % limit;
 }
+inline __device__
 int hash2(int data, int limit) {
 	return ((long)abs(data) * primeList[67]) % primeList[91] % limit;
 }
+inline __device__
 int hash3(int data, int limit) {
 	return ((long)abs(data) * primeList[70]) % primeList[93] % limit;
 }
-*/
+
+#define HASH_FUNC_SALT 0xFAB011991u
+
+inline __device__ __host__
+unsigned hashFunction(const unsigned constant, const int key, const size_t size)
+{
+	unsigned long long int val = constant ^ HASH_FUNC_SALT + constant * key;
+	unsigned result = val % HASH_FUNC_PRIME_DIVISOR;
+	return result % size;
+}
+
+inline __device__ __host__
+unsigned bucketHashFunction(
+                const unsigned c0, const unsigned c1, const int key, const size_t size)
+{
+        return ((c0 + c1*key) % HASH_FUNC_PRIME_DIVISOR) % size;
+}
+
 
 //
 // GPU HashTable
@@ -104,7 +130,7 @@ class GpuHashTable
 		int capacity;
 		int currentSize;
 		Bucket* table;
-
+	        int hashConstants[20];
                 int* deviceKeys;
                 int* deviceValues;
 

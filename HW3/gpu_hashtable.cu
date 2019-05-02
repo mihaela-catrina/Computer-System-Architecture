@@ -7,62 +7,63 @@
 
 #include "gpu_hashtable.hpp"
 
-__device__ int hashFunc(int key, int offset = 0 )
+__device__ int hashFunc(int *hashConstants, int key, int capacity, int offset = 0 )
 {
-    offset *= 2;
+   // offset *= 2;
    // printf("Offset = %d\n", offset);
-    unsigned long long a = primeList[MAX_HASH_PARAM-offset];
-    unsigned long long b = primeList[MAX_HASH_PARAM-offset-1];
-    return (a*key + b) % INT_MAX;
+   // int a = hashConstants[19-offset];
+   // int b = hashConstants[19-offset-1];
+   // printf("a = %d, b = %d\n", a, b);
+   // return ((a*key + b) % 4294967291U) % capacity;
+   if (offset == 0) return hash1(key, capacity);
+   if (offset == 1) return hash2(key, capacity);
+   if (offset == 2) return hash3(key, capacity);
 }
 
-__global__ void cuckooInsert( int* keys, int* values, int numKeys, Bucket *table, int capacity)
+__global__ void cuckooInsert(int* keys, int* values, int numKeys, Bucket *table, int capacity, int *hashConstants)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (tid < numKeys) {
         int key = keys[tid];
         int value = values[tid];
-        //printf("Key val insert : %d - %d\n", key, value);
-        Bucket newValue = (((static_cast<Bucket>(key) << 32)) | (static_cast<Bucket>(value)));
-       // printf("Key = %d  ", (newValue & 0xffffffff00000000)>>32);
-        //printf("Val = %d\n", (newValue & 0x00000000ffffffff)); 
+        Bucket newValue = (((static_cast<Bucket>(key) << 32)) | (static_cast<Bucket>(value))); 
         
-        int idx[5];
-        idx[0] = hashFunc(key, 0) % capacity;
-       // printf("Capacity = %d idx[0] = %d\n", capacity, idx[0]);
-        for (int i = 0; i < 1000; ++i) {
-           // printf("In for\n\n");           
+        int idx[4];
+        idx[0] = hashFunc(hashConstants, key, capacity, 0);
+        for (int i = 0; i <  7 * log2f(numKeys); ++i) { 
             newValue = atomicExch(&table[idx[0]], newValue);
-           
-	//    printf("After atomic Exch\n\n");
-           // printf("table[%d].val = %d\n", idx[0], table[idx[0]] & 0x00000000ffffffff);
-          //  auto aux1 = ((table[idx[0]] & 0xffffffff00000000)>>32);
-           // auto aux2 = table[idx[0]] & 0x00000000ffffffff;
-	    //printf("table[%d].key = %d\n", idx[0], aux1);
-           // printf("table[%d].val = %d\n", idx[0], aux2);
 	    if ((newValue & 0xffffffff00000000) >> 32 == KEY_INVALID) {
 		   return;
             }
-
+	    key = (newValue & 0xffffffff00000000)>>32;
+            value = (newValue & 0x00000000ffffffff);
             // Otherwise find a new location for the displaced item
-            idx[1] = hashFunc( key, 0 ) % capacity;
-            idx[2] = hashFunc( key, 1 ) % capacity;
-            idx[3] = hashFunc( key, 2 ) % capacity;
-            idx[4] = hashFunc( key, 3 ) % capacity;
+            int last_loc = idx[0];
+	    idx[0] = hashFunc(hashConstants, key, capacity, 0);
+            idx[1] = hashFunc(hashConstants, key, capacity, 1);
+            idx[2] = hashFunc(hashConstants, key, capacity, 2);
+            //idx[3] = hashFunc(hashConstants, key, capacity, 3);
 
-            if( idx[0] == idx[1] ) idx[0] = idx[2];
-            else if( idx[0] == idx[2] ) idx[0] = idx[3];
-            else if( idx[0] == idx[3] ) idx[0] = idx[4];
-            else idx[0] = idx[1];
+            for (int i=1; i >= 0; --i)
+		idx[0] = (last_loc == idx[i] ? idx[i+1] : idx[0]);
+	    
         }
+          /*
+        if ((newValue & 0xffffffff00000000) >> 32 != KEY_INVALID)
+	{	key = (newValue & 0xffffffff00000000)>>32;
+		idx[0] = hashFunction(_hashConstants[0], key, capacity);
+		auto slot = (unsigned long long int*)(table + (current_size + idx[0]));
+		auto replaced = atomicCAS(slot, 0, newValue);
+		if (replaced != 0) return;
+        } */
 
         printf("tid %d: Insert (%u,%u) failed\n", tid, key, value);
     }
     return;
 }
 
-__global__ void cuckooGet( int* keys, int* values, int numKeys, Bucket *table, int capacity)
+__global__ void cuckooGet( int* keys, int* values, int numKeys, Bucket *table, int capacity, int *hashConstants)
 {
     unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -70,17 +71,17 @@ __global__ void cuckooGet( int* keys, int* values, int numKeys, Bucket *table, i
         int key = keys[tid];
 
         // Compute all possible locations
-        uint32_t idx[4];
-        idx[0] = hashFunc(key, 0 );
-        idx[1] = hashFunc(key, 1 );
-        idx[2] = hashFunc(key, 2 );
-        idx[3] = hashFunc(key, 3 );
+        int idx[4];
+        idx[0] = hashFunc(hashConstants, key, capacity,  0 );
+        idx[1] = hashFunc(hashConstants, key, capacity, 1 );
+        idx[2] = hashFunc(hashConstants, key, capacity, 2 );
+       // idx[3] = hashFunc(hashConstants, key, capacity, 3 );
 
         Bucket entry;
-        for( int i = 0; i < 4; ++i )
+        for( int i = 0; i < 3; ++i )
         {
             entry = static_cast<Bucket> (table[idx[i] % capacity]);
-            Key k = (entry & 0xffffffff00000000) >> (8 * sizeof(Value));
+            Key k = (entry & 0xffffffff00000000) >> 32;
             if( k == key ) {
                 int val = (entry & 0x00000000ffffffff);
 		values[tid] = val;
@@ -108,6 +109,9 @@ GpuHashTable::GpuHashTable(int size) {
     // free slots have <key, value> equal to 0
     cudaMalloc((void **) &table, capacity * sizeof(Bucket));
     cudaMemset(table, KEY_INVALID, capacity * sizeof(Bucket));
+    
+//    for(int i=0; i<20; i++) {hashConstants[i] = hashFnGen(gen); printf("%d ", hashConstants[i]);}
+  //  printf("\n");
 }
 
 /* DESTROY HASH
@@ -144,7 +148,7 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
     cudaMalloc(&deviceValues, numKeys * sizeof(int));
     cudaMemcpy(deviceKeys, keys, numKeys * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(deviceValues, values, numKeys * sizeof(int), cudaMemcpyHostToDevice);
-   printf("Insertttt\n");
+    printf("Insertttt\n");
     for (int i = 0; i < numKeys; i++) {
         printf("<key, value> : <%d, %d>\n", keys[i], values[i]);
     }
@@ -153,10 +157,11 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
 
     if (numKeys % block_size)
         ++blocks_no;
-
+    bool result = true;
     // Launch the kernel
-    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity);
-cudaDeviceSynchronize();
+    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity, hashConstants);
+    
+    cudaDeviceSynchronize();
 
     Bucket *hostValues = 0;
 
@@ -179,38 +184,23 @@ cudaDeviceSynchronize();
 /* GET BATCH
  */
 int *GpuHashTable::getBatch(int *keys, int numKeys) {
-    Bucket *hostValues2 = 0;
-
-    hostValues2 = (Bucket*) malloc(capacity * sizeof(Bucket));
-    cudaMemcpy(hostValues2, table, capacity, cudaMemcpyDeviceToHost);
-   // printf("Gettttt\n");
-   // for (int i = 0; i < capacity; i++) {
-     //   printf("<key, value> : <%d, %d>\n", hostValues2[i] & 0xffff0000, hostValues2[i] & 0x0000ffff);
-   // }
-
-
     cudaMalloc(&deviceKeys, numKeys * sizeof(int));
     cudaMalloc(&deviceValues, numKeys * sizeof(int));
-    cudaMemcpy(deviceKeys, keys, numKeys, cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceKeys, keys, numKeys * sizeof(int), cudaMemcpyHostToDevice);
 
     const int block_size = 64;
     int blocks_no = numKeys / block_size;
 
     if (numKeys % block_size)
         ++blocks_no;
-    cuckooGet <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity);
-
+    cuckooGet <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity, hashConstants);
+    cudaDeviceSynchronize();
     int *hostValues = 0;
-
     hostValues = (int*) malloc(numKeys * sizeof(int));
-    cudaMemcpy(hostValues, deviceValues, numKeys, cudaMemcpyDeviceToHost);
-//    cudaDeviceSynchronize();
-   // cudaFree(deviceKeys);
-   // cudaFree(deviceValues);
-  // printf("REturnnnnn\n");
-  // for (int i = 0; i < numKeys; i++) {
-    //    printf("<key, value> : <%d, %d>\n", keys[i], hostValues[i]);
-  // }
+    cudaMemcpy(hostValues, deviceValues, numKeys * sizeof(int), cudaMemcpyDeviceToHost);
+    
+    cudaFree(deviceKeys);
+    cudaFree(deviceValues);
     return hostValues;
 }
 
