@@ -8,7 +8,7 @@ using namespace std;
 #define MAX_VER         5
 
 // Array to store possible positions for a key
-typedef uint64_t Bucket;
+typedef unsigned long long Bucket;
 typedef uint32_t Key;
 typedef uint32_t Value; 
 
