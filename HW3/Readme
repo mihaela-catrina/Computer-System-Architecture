@@ -1,0 +1,84 @@
+Nume:  Catrina Mihaela-Florentina
+Grupa: 333CB
+
+===============================================================================
+                                   README
+===============================================================================
+
+Implementare:
+    Am ales sa implementez metoda de hashing Cuckoo based. Astfel, am folosit
+o functie generala de hashing care in functie de un offset primit ca parametru
+apeleaza una dintre cele trei functii de hash preexistente in schelet.
+    Tabela de hashing este stocata in memoria VRAM, fiind alocata cu ajutorul
+functiei cudaMalloc. Tabela este un vector de Buckets = vector de unsigned
+long long (64 de biti). Astfel, pe primii 32 de biti ai unei intrari din vector
+se afla cheia, iar pe ultimii 32 de biti se afla valoarea. Intrarea in hash se
+construieste prin operatii de OR intre valoarea extinsa a cheii si valoare.
+Cheia si Valoarea corespunzatoare se extrag folosind operatia de AND pe biti.
+Se vor obtine astfel cele 2 jumatati: high -> cheia, low -> valoarea.
+    Inserarea se bazeaza pe metoda chuckoo. Se va incerca inserarea valorii
+prin inlocuirea celor existente succesiv (lungimea ciclului -nr de incercari-
+este dependenta logaritmic de dimensiunea inputului). Daca la finalul ciclului
+o valoare ramane neinserata se va apela metoda rehash. Am implementat rehash
+astfel: se dubleaza capacitatea hashului si se reinsereaza toate elementele
+deja prezente in hashtable, dupa care se insereaza cele noi.
+    Metoda get se bazeaza pe precalculatrea tuturor locatiile posibile pentru
+o anumita cheie. Se vor incerca apoi toate locatile pentru a identifica
+bucket-ul corect.
+
+Rezultate:
+
+('HASH_BATCH_INSERT, 100000, 10, 50', ' OK')
+('HASH_BATCH_GET, 100000, inf, 50', ' OK')
+Test T1 20/20
+
+('HASH_BATCH_INSERT, 2000000, 16.6667, 50', ' OK')
+('HASH_BATCH_GET, 2000000, 100, 50', ' OK')
+Test T2 20/20
+
+('HASH_BATCH_INSERT, 800000, 20, 50', ' OK')
+('HASH_BATCH_INSERT, 800000, 6.15385, 50', ' OK')
+('HASH_BATCH_INSERT, 800000, 16, 75', ' OK')
+('HASH_BATCH_INSERT, 800000, 3.2, 50', ' OK')
+('HASH_BATCH_INSERT, 800000, 7.27273, 62.5', ' OK')
+('HASH_BATCH_GET, 800000, inf, 62.5', ' OK')
+('HASH_BATCH_GET, 800000, inf, 62.5', ' OK')
+('HASH_BATCH_GET, 800000, inf, 62.5', ' OK')
+('HASH_BATCH_GET, 800000, 80, 62.5', ' OK')
+('HASH_BATCH_GET, 800000, 80, 62.5', ' OK')
+Test T3 10/10
+
+('HASH_BATCH_INSERT, 10000000, 16.9492, 50', ' OK')
+('HASH_BATCH_GET, 10000000, 166.667, 50', ' OK')
+Test T4 20/20
+
+('HASH_BATCH_INSERT, 2000000, 18.1818, 50', ' OK')
+('HASH_BATCH_INSERT, 2000000, 6.06061, 50', ' OK')
+('HASH_BATCH_INSERT, 2000000, 15.3846, 75', ' OK')
+('HASH_BATCH_INSERT, 2000000, 2.98507, 50', ' OK')
+('HASH_BATCH_INSERT, 2000000, 8.33333, 62.5', ' OK')
+('HASH_BATCH_GET, 2000000, 100, 62.5', ' OK')
+('HASH_BATCH_GET, 2000000, 200, 62.5', ' OK')
+('HASH_BATCH_GET, 2000000, 200, 62.5', ' OK')
+('HASH_BATCH_GET, 2000000, 100, 62.5', ' OK')
+('HASH_BATCH_GET, 2000000, 200, 62.5', ' OK')
+Test T5 20/20
+
+
+TOTAL gpu_hashtable  90/90
+
+
+    Se observa un loadFactor de 50% - putin peste 50% (max 75%). Acest load
+factor se datoreaza dublarii capacitatii hashtable-ului atunci cand nu se mai
+pot insera elemente. Astfel, la prima operatie de insert capacitatea hash-ului
+va fi egala cu numarul de elemente. Daca anumite elemente nu se pot insera
+se dubleaza capacitatea => capacitatea = 2 * numElem => loadFactor = 50%.
+    Dupa operatiile de update / insert succesive se observa marirea
+load-factor-ului.
+    De asemena, se observa ca operatia de HASH_BATCH_INSERT e mai lenta decat
+cea de HATCH_BATCH_GET. Acest lucru e justificat de prezenta ciclului dependent
+de dimeniunea inputlui in insert. Pe de alta parte, in get se precalculeaza si
+verifica doar 3 locatii (1 valoare per fct_hash) pentru fiecare cheie.
+
+Cluster:
+    hp-sl.q

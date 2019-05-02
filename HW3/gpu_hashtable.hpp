@@ -9,11 +9,11 @@ using namespace std;
 #define KEY_INVALID 0
 #define LOW         0x00000000ffffffff
 #define HIGH        0Xffffffff00000000
-#define INT_BITS    32    
+#define INT_BITS    32
 #define HASH_FUNC_PRIME_DIVISOR 4294967291u
 
 typedef unsigned long long Bucket;
-typedef int  Key;
+typedef int Key;
 typedef int Value;
 
 
@@ -102,9 +102,9 @@ public:
     GpuHashTable(int size);
 
     void reshape(int sizeReshape);
-    
+
     // Rehash when values can no longer be inserted
-    void rehash(int *keys, int*values, int numKeys);
+    void rehash(int *keys, int *values, int numKeys);
 
     bool insertBatch(int *keys, int *values, int numKeys);
 

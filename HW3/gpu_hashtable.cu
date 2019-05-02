@@ -14,8 +14,17 @@ __device__ int hashFunc(int key, int capacity, int offset = 0) {
     return hash3(key, capacity);
 }
 
-/**/
-__global__ void cuckooInsert(int *keys, int *values, int numKeys, Bucket *table, int capacity, int *currentSize, int *updates) {
+/*
+ * keys        - keys to be inserted
+ * values      - values to be inserted
+ * numKeys     - number of entries
+ * table       - hashtable
+ * capacity    - maximum capacity of the hashtable
+ * currentSize - current size of the hashtable
+ * updates     - number of updated entries
+ * */
+__global__ void
+cuckooInsert(int *keys, int *values, int numKeys, Bucket *table, int capacity, int *currentSize, int *updates) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < numKeys) {
@@ -23,13 +32,13 @@ __global__ void cuckooInsert(int *keys, int *values, int numKeys, Bucket *table,
         int value = values[tid];
         // create a new 64-bit value (key | value)
         Bucket newValue = (((static_cast<Bucket>(key) << INT_BITS)) | (static_cast<Bucket>(value)));
-        
+
         // Compute all possible locations
-	int idx[4];
-	idx[0] = hashFunc(key, capacity, 0);
+        int idx[4];
+        idx[0] = hashFunc(key, capacity, 0);
         idx[1] = hashFunc(key, capacity, 1);
         idx[2] = hashFunc(key, capacity, 2);
-        
+
         Bucket entry;
         // verify if the key is already in the hashmap
         for (int i = 0; i < 3; ++i) {
@@ -45,21 +54,21 @@ __global__ void cuckooInsert(int *keys, int *values, int numKeys, Bucket *table,
         // Othrewise try to insert the key in the table
         idx[0] = hashFunc(key, capacity, 0);
         // Max probe heuristic
-        for (int i = 0; i < 7 *log2f(numKeys); ++i) {
-	    // Exchange
+        for (int i = 0; i < 7 * log2f(numKeys); ++i) {
+            // Exchange
             newValue = atomicExch(&table[idx[0]], newValue);
             if ((newValue & HIGH) >> INT_BITS == KEY_INVALID) {
-              	 atomicAdd(currentSize, 1);
-		 return;
+                atomicAdd(currentSize, 1);
+                return;
             }
-           
+
             key = (newValue & HIGH) >> INT_BITS;
             // Otherwise find a new location for the displaced item
             int last_loc = idx[0];
             idx[0] = hashFunc(key, capacity, 0);
             idx[1] = hashFunc(key, capacity, 1);
             idx[2] = hashFunc(key, capacity, 2);
-            
+
             for (int i = 1; i >= 0; --i)
                 idx[0] = (last_loc == idx[i] ? idx[i + 1] : idx[0]);
 
@@ -68,7 +77,14 @@ __global__ void cuckooInsert(int *keys, int *values, int numKeys, Bucket *table,
     return;
 }
 
-/**/
+
+/*
+ * keys        - keys to be inserted
+ * values      - values to be inserted
+ * numKeys     - number of entries
+ * table       - hashtable
+ * capacity    - maximum capacity of the hashtable
+ * */
 __global__ void cuckooGet(int *keys, int *values, int numKeys, Bucket *table, int capacity) {
     unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -86,12 +102,12 @@ __global__ void cuckooGet(int *keys, int *values, int numKeys, Bucket *table, in
             entry = table[loc[i]];
             Key k = (entry & HIGH) >> INT_BITS;
             // Get value
-	    if (k == key) {
+            if (k == key) {
                 int val = (entry & LOW);
                 values[tid] = val;
                 return;
             }
-        } 
+        }
     }
 
     return;
@@ -140,8 +156,8 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
 
     cudaMalloc(&deviceKeys, numKeys * sizeof(int));
     cudaMalloc(&deviceValues, numKeys * sizeof(int));
-    oldKeys = (int*)malloc(*currentSize * sizeof(int));
-    oldValues = (int*)malloc(*currentSize * sizeof(int));
+    oldKeys = (int *) malloc(*currentSize * sizeof(int));
+    oldValues = (int *) malloc(*currentSize * sizeof(int));
     cudaMemcpy(deviceKeys, keys, numKeys * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(deviceValues, values, numKeys * sizeof(int), cudaMemcpyHostToDevice);
 
@@ -151,13 +167,13 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
     cudaMemcpy(tableValues, table, capacity * sizeof(Bucket), cudaMemcpyDeviceToHost);
     int index = 0;
     for (int i = 0; i < capacity; i++) {
-        if(tableValues[i] != KEY_INVALID) {
+        if (tableValues[i] != KEY_INVALID) {
             oldValues[index] = (tableValues[i] & LOW);
             oldKeys[index] = (tableValues[i] & HIGH) >> INT_BITS;
             index++;
-	}
-        
+        }
     }
+
     oldSize = *currentSize;
     *updates = 0;
     free(tableValues);
@@ -167,12 +183,13 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
     int blocks_no = numKeys / block_size;
     if (numKeys % block_size)
         ++blocks_no;
-    
+
     // Launch the kernel
-    cuckooInsert <<< blocks_no, block_size >>> (deviceKeys, deviceValues, numKeys, table, capacity, currentSize, updates);
+    cuckooInsert <<< blocks_no, block_size >>>
+                                 (deviceKeys, deviceValues, numKeys, table, capacity, currentSize, updates);
     cudaDeviceSynchronize();
-     // If all the values have not been successfully inserted
-     if (*currentSize != oldSize + numKeys - *updates) {
+    // If all the values have not been successfully inserted
+    if (*currentSize != oldSize + numKeys - *updates) {
         rehash(keys, values, numKeys);
     } else {
         // Copy values to the host part
@@ -193,7 +210,7 @@ bool GpuHashTable::insertBatch(int *keys, int *values, int numKeys) {
     return false;
 }
 
-void GpuHashTable::rehash(int *keys, int*values, int numKeys) {
+void GpuHashTable::rehash(int *keys, int *values, int numKeys) {
     Bucket *newTable = NULL;
     Bucket *aux = 0;
     cudaMalloc((void **) &newTable, 2 * capacity * sizeof(Bucket));
@@ -206,7 +223,7 @@ void GpuHashTable::rehash(int *keys, int*values, int numKeys) {
     cudaFree(aux);
 
     if (oldSize != 0) {
-   	 insertBatch(oldKeys, oldValues, oldSize);
+        insertBatch(oldKeys, oldValues, oldSize);
     }
     insertBatch(keys, values, numKeys);
 
