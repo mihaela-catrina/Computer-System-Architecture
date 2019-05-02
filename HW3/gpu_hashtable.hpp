@@ -6,20 +6,16 @@
 
 using namespace std;
 
-#define    KEY_INVALID        0
-#define MAX_HASH_PARAM  180
-#define MAX_VER         5
+#define KEY_INVALID 0
+#define LOW         0x00000000ffffffff
+#define HIGH        0Xffffffff00000000
+#define INT_BITS    32    
 #define HASH_FUNC_PRIME_DIVISOR 4294967291u
 
-// Array to store possible positions for a key
 typedef unsigned long long Bucket;
 typedef int  Key;
 typedef int Value;
-random_device rd;
-mt19937 gen(rd());
-uniform_int_distribution <Key> keyGen(1);
-uniform_int_distribution <Value> valGen(1);
-uniform_int_distribution<int> hashFnGen(1);
+
 
 #define DIE(assertion, call_description) \
     do {    \
@@ -79,7 +75,7 @@ primeList[] =
 };
 
 //
-// random hash functions, build your own
+// random hash functions
 inline __device__
 int hash1(int data, int limit) {
     return ((long) abs(data) * primeList[64]) % primeList[90] % limit;
@@ -95,23 +91,6 @@ int hash3(int data, int limit) {
     return ((long) abs(data) * primeList[70]) % primeList[93] % limit;
 }
 
-#define HASH_FUNC_SALT 0xFAB011991u
-
-inline __device__ __host__
-
-unsigned hashFunction(const unsigned constant, const int key, const size_t size) {
-    unsigned long long int val = constant ^HASH_FUNC_SALT + constant * key;
-    unsigned result = val % HASH_FUNC_PRIME_DIVISOR;
-    return result % size;
-}
-
-inline __device__ __host__
-
-unsigned bucketHashFunction(
-        const unsigned c0, const unsigned c1, const int key, const size_t size) {
-    return ((c0 + c1 * key) % HASH_FUNC_PRIME_DIVISOR) % size;
-}
-
 
 //
 // GPU HashTable
@@ -123,7 +102,8 @@ public:
     GpuHashTable(int size);
 
     void reshape(int sizeReshape);
-
+    
+    // Rehash when values can no longer be inserted
     void rehash(int *keys, int*values, int numKeys);
 
     bool insertBatch(int *keys, int *values, int numKeys);
@@ -139,18 +119,18 @@ public:
     ~GpuHashTable();
 
 private:
+    Bucket *table;
     int capacity;
     int *currentSize;
+    // keeps number of updated values
     int *updates;
-    Bucket *table;
-    int hashConstants[20];
+    // device side
     int *deviceKeys = 0;
     int *deviceValues = 0;
+    // used for rehashing
     int *oldValues = 0;
     int *oldKeys = 0;
     int oldSize = 0;
-
-    Bucket &operator[](int index) { return table[index]; }
 };
 
 #endif
