@@ -13,8 +13,8 @@ using namespace std;
 
 // Array to store possible positions for a key
 typedef unsigned long long Bucket;
-typedef uint32_t Key;
-typedef uint32_t Value;
+typedef int  Key;
+typedef int Value;
 random_device rd;
 mt19937 gen(rd());
 uniform_int_distribution <Key> keyGen(1);
@@ -124,7 +124,7 @@ public:
 
     void reshape(int sizeReshape);
 
-    void rehash();
+    void rehash(int *keys, int*values, int numKeys);
 
     bool insertBatch(int *keys, int *values, int numKeys);
 
@@ -140,14 +140,15 @@ public:
 
 private:
     int capacity;
-    int currentSize;
+    int *currentSize;
+    int *updates;
     Bucket *table;
     int hashConstants[20];
     int *deviceKeys = 0;
     int *deviceValues = 0;
     int *oldValues = 0;
     int *oldKeys = 0;
-    int *oldSize = 0;
+    int oldSize = 0;
 
     Bucket &operator[](int index) { return table[index]; }
 };
